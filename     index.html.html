@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>ふたりが出会うまでのRPG</title>
+<style>
+  :root{--ink:#f5f1e8;--panel:#171627;--gold:#ffd166;--pink:#ff7aa2;--blue:#70d6ff;--danger:#ff595e;--ok:#8ac926}
+  *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at top,#30284c,#0e0d18 65%);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Noto Sans JP",monospace;min-height:100vh;display:flex;justify-content:center;padding:16px}
+  .app{width:min(980px,100%)} h1{font-size:clamp(22px,4vw,38px);margin:4px 0 8px;text-align:center;text-shadow:3px 3px #000}.subtitle{text-align:center;opacity:.8;margin-bottom:14px}
+  .shell{border:4px solid #fff;border-radius:14px;background:#0d0c16;box-shadow:0 12px 40px #0008;overflow:hidden}
+  .topbar{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:10px 14px;background:#1a1930;border-bottom:3px solid #fff;flex-wrap:wrap}
+  .stat{font-weight:800}.hpbar{display:inline-block;width:150px;height:14px;border:2px solid white;vertical-align:middle;margin-left:6px;background:#2a2739}.hpfill{height:100%;background:linear-gradient(90deg,#ff595e,#ffca3a);width:100%}
+  #game{display:block;width:100%;aspect-ratio:16/9;background:#111;image-rendering:pixelated;touch-action:none}
+  .panel{padding:14px;background:#171627;border-top:3px solid white;min-height:150px}.message{min-height:54px;line-height:1.65;font-size:15px}.controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.btn{appearance:none;border:3px solid white;background:#2a2740;color:white;padding:10px 14px;border-radius:8px;font:inherit;font-weight:800;cursor:pointer;box-shadow:0 4px #000}.btn:hover{transform:translateY(-1px);background:#3a3658}.btn:active{transform:translateY(2px);box-shadow:0 1px #000}.btn.primary{background:#6c4dd8}.btn.pink{background:#b93668}.btn.gold{background:#8a6816}.btn:disabled{opacity:.35;cursor:not-allowed}
+  .choice{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{border:3px solid white;padding:16px;border-radius:12px;background:#23203b;cursor:pointer;transition:.15s;text-align:left}.card:hover{transform:translateY(-3px);box-shadow:0 8px 0 #000}.portrait{font-size:58px;display:block}.card h2{margin:8px 0}.small{font-size:13px;opacity:.8;line-height:1.6}.hidden{display:none!important}
+  .battle-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.enemyBox,.heroBox{border:3px solid white;padding:12px;border-radius:10px;background:#201d34}.skillgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
+  .dpad{display:none;grid-template-columns:52px 52px 52px;grid-template-rows:52px 52px 52px;gap:4px;justify-content:center;margin-top:12px}.dpad button{font-size:22px;padding:0}.up{grid-column:2}.left{grid-row:2;grid-column:1}.down{grid-row:2;grid-column:2}.right{grid-row:2;grid-column:3}
+  @media(max-width:700px){.choice,.battle-grid{grid-template-columns:1fr}.dpad{display:grid}.topbar{font-size:13px}.hpbar{width:100px}.panel{min-height:210px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>ふたりが出会うまでのRPG</h1>
+  <div class="subtitle">— 音の王国と、まだ名前のない運命 —</div>
+  <div class="shell">
+    <div class="topbar">
+      <div class="stat" id="heroLabel">主人公：未選択</div>
+      <div class="stat">HP <span class="hpbar"><span id="hpfill" class="hpfill"></span></span> <span id="hptext">0/0</span></div>
+      <div class="stat">思い出の欠片：<span id="shards">0</span>/3</div>
+    </div>
+    <canvas id="game" width="960" height="540"></canvas>
+    <div class="panel">
+      <div id="startScreen">
+        <div class="message">魔王「すれちがい」は、ふたりが出会うはずだった未来を奪った。主人公を選び、囚われたもう一人を救い出せ。</div>
+        <div class="choice">
+          <button class="card" id="chooseToshinari" type="button"><span class="portrait">🥁</span><h2>としなりくん</h2><div class="small">武器：情熱のドラムスティック<br>特徴：分析して弱点を突く。追い込まれるほど頭が回る。</div></button>
+          <button class="card" id="chooseChisako" type="button"><span class="portrait">🎤</span><h2>ちさこちゃん</h2><div class="small">武器：心を動かす歌声<br>特徴：仲間を励まし、音の力で敵の気持ちまで変える。</div></button>
+        </div>
+      </div>
+      <div id="worldUI" class="hidden">
+        <div id="message" class="message"></div>
+        <div class="controls"><button class="btn primary" id="interactBtn" type="button">調べる / 話す</button><button class="btn" id="helpBtn" type="button">操作方法</button><button class="btn" id="restartBtn" type="button">最初から</button></div>
+        <div class="dpad"><button class="btn up" data-dir="up">▲</button><button class="btn left" data-dir="left">◀</button><button class="btn down" data-dir="down">▼</button><button class="btn right" data-dir="right">▶</button></div>
+      </div>
+      <div id="battleUI" class="hidden">
+        <div class="battle-grid"><div class="heroBox"><b id="battleHero"></b><div id="battleHeroHp"></div></div><div class="enemyBox"><b id="enemyName"></b><div id="enemyHp"></div></div></div>
+        <div id="battleMessage" class="message"></div><div id="skillButtons" class="skillgrid"></div>
+      </div>
+      <div id="endingUI" class="hidden"><div id="endingText" class="message"></div><div class="controls"><button class="btn pink" id="endingRestartBtn" type="button">もう一度、別の主人公で遊ぶ</button></div></div>
+    </div>
+  </div>
+</div>
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const W=960,H=540,T=60;
+let hero=null,rescued=null,state='start',keys={},shards=0,defeated=new Set(),battle=null,frame=0;
+const walls=[
+  {x:0,y:0,w:960,h:45},{x:0,y:495,w:960,h:45},{x:0,y:0,w:45,h:540},{x:915,y:0,w:45,h:540},
+  {x:180,y:110,w:60,h:250},{x:420,y:45,w:60,h:190},{x:420,y:340,w:60,h:155},{x:660,y:150,w:60,h:260}
+];
+const enemies=[
+ {id:'noise',x:300,y:90,name:'雑音ゴブリン',emoji:'👺',hp:36,maxHp:36,attack:8,shard:'勇気の欠片'},
+ {id:'doubt',x:555,y:420,name:'自信喪失スライム',emoji:'🫠',hp:48,maxHp:48,attack:10,shard:'信頼の欠片'},
+ {id:'distance',x:800,y:100,name:'距離の番人',emoji:'🗿',hp:62,maxHp:62,attack:12,shard:'偶然の欠片'}
+];
+const boss={id:'boss',x:825,y:420,name:'魔王「すれちがい」',emoji:'👿',hp:100,maxHp:100,attack:15};
+const chars={
+ toshinari:{name:'としなりくん',emoji:'🥁',color:'#70d6ff',maxHp:100,skills:[
+  {name:'ロジカル・ビート',power:18,desc:'敵の弱点を分析して正確に叩く。'},
+  {name:'爆発フィルイン',power:28,desc:'緊張を力に変える大技。反動あり。',recoil:5},
+  {name:'巻き込みコール',power:12,heal:14,desc:'仲間の声を思い出し、攻撃しながら回復。'},
+  {name:'原因究明',power:8,boost:true,desc:'次の攻撃を大幅に強化する。'}]},
+ chisako:{name:'ちさこちゃん',emoji:'🎤',color:'#ff7aa2',maxHp:105,skills:[
+  {name:'ハートフル・ボイス',power:17,desc:'まっすぐな歌声を届ける。'},
+  {name:'シャウト・サビ',power:27,desc:'溜めた感情を一気に解放する。',recoil:4},
+  {name:'やさしいMC',power:10,heal:18,desc:'言葉で場を整え、攻撃しながら回復。'},
+  {name:'アンコール',power:7,boost:true,desc:'次の攻撃を大幅に強化する。'}]}
+};
+let player={x:90,y:250,r:18,hp:0,maxHp:0,speed:4,boost:false};
+function el(id){return document.getElementById(id)}
+el('chooseToshinari').addEventListener('click',()=>chooseHero('toshinari'));
+el('chooseChisako').addEventListener('click',()=>chooseHero('chisako'));
+el('interactBtn').addEventListener('click',interact);
+el('helpBtn').addEventListener('click',showHelp);
+el('restartBtn').addEventListener('click',restartGame);
+el('endingRestartBtn').addEventListener('click',restartGame);
+function chooseHero(id){hero=chars[id];rescued=chars[id==='toshinari'?'chisako':'toshinari'];player.hp=player.maxHp=hero.maxHp;state='world';el('startScreen').classList.add('hidden');el('worldUI').classList.remove('hidden');el('heroLabel').textContent='主人公：'+hero.name;msg(`魔王に囚われた${rescued.name}を救う旅が始まった。まずは3体の番人を倒し、「思い出の欠片」を集めよう。`);updateHUD();}
+function restartGame(){location.reload()}
+function msg(t){el('message').textContent=t}
+function showHelp(){msg('PC：矢印キー / WASDで移動、Eまたはスペースで調べる。スマホ：画面下の方向ボタンで移動。「調べる / 話す」で近くの対象に反応。')}
+function updateHUD(){el('hptext').textContent=`${Math.max(0,player.hp)}/${player.maxHp}`;el('hpfill').style.width=`${Math.max(0,player.hp/player.maxHp*100)}%`;el('shards').textContent=shards}
+function collide(nx,ny){return walls.some(w=>nx+player.r>w.x&&nx-player.r<w.x+w.w&&ny+player.r>w.y&&ny-player.r<w.y+w.h)}
+function move(dx,dy){if(state!=='world')return;let nx=player.x+dx*player.speed,ny=player.y+dy*player.speed;if(!collide(nx,player.y))player.x=nx;if(!collide(player.x,ny))player.y=ny;checkEncounter()}
+function near(a,b,d=45){return Math.hypot(a.x-b.x,a.y-b.y)<d}
+function checkEncounter(){for(const e of enemies){if(!defeated.has(e.id)&&near(player,e,35)){startBattle(e);return}}if(shards===3&&!defeated.has('boss')&&near(player,boss,40))startBattle(boss)}
+function interact(){if(state!=='world')return;const target=enemies.find(e=>!defeated.has(e.id)&&near(player,e,70));if(target)return startBattle(target);if(shards===3&&near(player,boss,80))return startBattle(boss);if(shards<3&&near(player,boss,100))return msg('城門は3つの思い出の欠片で封印されている。先に番人を倒そう。');msg('風の中から、まだ出会っていない誰かの音が聞こえる……。')}
+function startBattle(enemy){state='battle';battle={enemy:{...enemy},turn:0};el('worldUI').classList.add('hidden');el('battleUI').classList.remove('hidden');el('battleHero').textContent=hero.emoji+' '+hero.name;el('enemyName').textContent=enemy.emoji+' '+enemy.name;el('battleMessage').textContent=enemy.id==='boss'?`魔王「このまま出会わなければ、傷つくこともないぞ」`:`${enemy.name}が道をふさいだ！`;renderSkills();updateBattle()}
+function renderSkills(){el('skillButtons').innerHTML='';hero.skills.forEach((s,i)=>{const b=document.createElement('button');b.className='btn '+(i===1?'pink':i===3?'gold':'');b.innerHTML=`${s.name}<br><span style="font-size:11px;font-weight:400">${s.desc}</span>`;b.onclick=()=>useSkill(i);el('skillButtons').appendChild(b)})}
+function updateBattle(){el('battleHeroHp').textContent=`HP ${Math.max(0,player.hp)} / ${player.maxHp}`;el('enemyHp').textContent=`HP ${Math.max(0,battle.enemy.hp)} / ${battle.enemy.maxHp}`;updateHUD()}
+function useSkill(i){if(state!=='battle')return;[...el('skillButtons').children].forEach(b=>b.disabled=true);const s=hero.skills[i];let dmg=s.power+Math.floor(Math.random()*7);if(player.boost){dmg=Math.floor(dmg*1.8);player.boost=false}if(s.boost){player.boost=true;el('battleMessage').textContent=`${hero.name}は${s.name}。敵の癖とリズムを見抜いた。次の攻撃が強くなる！`;setTimeout(enemyTurn,700);return}battle.enemy.hp-=dmg;if(s.heal)player.hp=Math.min(player.maxHp,player.hp+s.heal);if(s.recoil)player.hp-=s.recoil;el('battleMessage').textContent=`${hero.name}の「${s.name}」！ ${dmg}ダメージ。${s.heal?` HPを${s.heal}回復。`:''}`;updateBattle();if(battle.enemy.hp<=0){setTimeout(winBattle,700)}else setTimeout(enemyTurn,850)}
+function enemyTurn(){if(state!=='battle')return;let dmg=battle.enemy.attack+Math.floor(Math.random()*6);player.hp-=dmg;el('battleMessage').textContent+=`\n${battle.enemy.name}の反撃。${dmg}ダメージ！`;updateBattle();if(player.hp<=0)setTimeout(gameOver,700);else setTimeout(()=>[...el('skillButtons').children].forEach(b=>b.disabled=false),650)}
+function winBattle(){const e=battle.enemy;defeated.add(e.id);state='world';el('battleUI').classList.add('hidden');el('worldUI').classList.remove('hidden');if(e.id==='boss'){endGame();return}shards++;player.hp=Math.min(player.maxHp,player.hp+25);msg(`${e.name}を倒し、「${e.shard}」を手に入れた。道の奥から${rescued.name}の声が近づいてくる。`);updateHUD()}
+function gameOver(){state='world';player.hp=player.maxHp;player.x=90;player.y=250;el('battleUI').classList.add('hidden');el('worldUI').classList.remove('hidden');msg('力尽きたが、音の精霊に入口まで戻された。HPは全回復した。諦めなければ物語は終わらない。');updateHUD()}
+function endGame(){state='ending';el('worldUI').classList.add('hidden');el('endingUI').classList.remove('hidden');el('endingText').innerHTML=`<b>${hero.name}は魔王を倒し、${rescued.name}の檻を開けた。</b><br><br>${rescued.name}「助けに来てくれたんやね。でも、たぶんこれは救われたんじゃなくて、やっと出会えたんやと思う」<br><br>ふたりは音の王国を歩き出した。最初から運命だったわけではない。雑音も、自信のなさも、距離も、すれちがいもあった。それでも互いの音を探し、同じステージへたどり着いた。<br><br><b>そして2025年5月4日、ふたりの物語は「出会うまで」から「ふたりで進む物語」へ変わった。</b>`}
+function draw(){frame++;ctx.clearRect(0,0,W,H);drawFloor();drawWalls();drawGoal();for(const e of enemies)if(!defeated.has(e.id))drawEntity(e.x,e.y,e.emoji,e.name,'#ffca3a');if(shards===3&&!defeated.has('boss'))drawEntity(boss.x,boss.y,boss.emoji,boss.name,'#ff595e');if(hero)drawEntity(player.x,player.y,hero.emoji,hero.name,hero.color,true);requestAnimationFrame(draw)}
+function drawFloor(){ctx.fillStyle='#18152b';ctx.fillRect(0,0,W,H);for(let y=0;y<H;y+=30)for(let x=0;x<W;x+=30){ctx.fillStyle=(x/30+y/30)%2?'#201c37':'#1b1830';ctx.fillRect(x,y,30,30)}ctx.fillStyle='#2e2650';ctx.fillRect(45,220,870,100);ctx.fillStyle='#503d75';for(let x=60;x<900;x+=70)ctx.fillRect(x,263,35,8)}
+function drawWalls(){walls.forEach(w=>{ctx.fillStyle='#4b4562';ctx.fillRect(w.x,w.y,w.w,w.h);ctx.strokeStyle='#8d86a8';ctx.lineWidth=3;ctx.strokeRect(w.x+4,w.y+4,w.w-8,w.h-8)})}
+function drawGoal(){ctx.fillStyle=shards===3?'#7147a8':'#343044';ctx.fillRect(760,350,145,130);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(760,350,145,130);ctx.fillStyle='#fff';ctx.font='18px monospace';ctx.fillText('魔王城',795,380);ctx.font='42px sans-serif';ctx.fillText(rescued?rescued.emoji:'❓',810,445)}
+function drawEntity(x,y,emoji,name,color,isPlayer=false){ctx.save();ctx.translate(x,y);ctx.fillStyle=color;ctx.globalAlpha=.28;ctx.beginPath();ctx.ellipse(0,18,28,10,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.font=(isPlayer?40:36)+'px sans-serif';ctx.textAlign='center';ctx.fillText(emoji,0,10+Math.sin(frame/12+x)*2);ctx.font='bold 13px monospace';ctx.fillStyle='#fff';ctx.fillText(name,0,-28);ctx.restore()}
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if([' ','e'].includes(e.key.toLowerCase()))interact()});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+setInterval(()=>{let dx=0,dy=0;if(keys['arrowleft']||keys['a'])dx--;if(keys['arrowright']||keys['d'])dx++;if(keys['arrowup']||keys['w'])dy--;if(keys['arrowdown']||keys['s'])dy++;if(dx&&dy){dx*=.707;dy*=.707}move(dx,dy)},16);
+document.querySelectorAll('.dpad button').forEach(b=>{let timer;const start=()=>{const d=b.dataset.dir;timer=setInterval(()=>move(d==='left'?-1:d==='right'?1:0,d==='up'?-1:d==='down'?1:0),16)};const stop=()=>clearInterval(timer);b.addEventListener('pointerdown',start);b.addEventListener('pointerup',stop);b.addEventListener('pointerleave',stop);b.addEventListener('pointercancel',stop)});
+draw();
+</script>
+</body>
+</html>
